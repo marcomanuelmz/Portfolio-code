@@ -1,0 +1,125 @@
+/**
+ * Copia los comentarios de hoy
+ * En la planilla App y en 
+ * La planilla de paradas sin filtrar
+ *
+ * Agregar que borre todas las paradas de ayer que sobran 
+ */
+function copiarParadas() {
+   
+  var ssApp = SpreadsheetApp.openByUrl("docs.google.com/spreadsheets/d/1Wo1eYiqEjRRaJXIO1Pw8f-OMkrDu_wXsQPMZqjLP23k/edit?usp=sharing");
+  var sParadasHoy  = ssApp.getSheetByName("Causas de parada Hoy").activate();
+  let rangeRealaux = sParadasHoy.getRange('E:E').getValues();
+  var paradasHoy   = rangeRealaux.filter(String); // eliminate the cells with nothing
+  let lengthT      = rangeRealaux.length;
+  let rangeReal    = paradasHoy.length;
+  var causeComment = sParadasHoy.getRange(1,6,rangeReal,2).getValues(); // getRange es con indice 1 como la spreadsheet
+  
+  var ssBase       = SpreadsheetApp.openByUrl("docs.google.com/spreadsheets/d/1PizXYy95GNYVtDCPMG82kSmXXAlQVh1_maCZHapo3So/edit?usp=sharing");
+  var sheetHistorico  = ssBase.getSheetByName("Causas de parada");
+  var dataHistoricaNF = sheetHistorico.getRange('E:E').getValues();
+  var dataHistorica   = dataHistoricaNF.filter(String);
+
+  var rowIndex= []; // initialization de los indices de las causas de parada de hoy en Causas historicas
+  
+  for (i = 1; i < rangeReal; i++) // indice 0!
+  {
+    var nameP  = paradasHoy[i][0]; // ej 'D0 PARADA66'
+    var idxToPush= dataHistorica.findIndex(parada => {return parada[0] == nameP})
+    var firstName= nameP.substr(0,9); // nombre de la maquina
+    while (idxToPush === -1){ // que pasa cuando la parada cambia de nombre
+      let numberP  = parseInt(nameP.slice(9));// numero de parada ej 66
+      numberP++; // 67
+      nameP    = firstName.concat(numberP.toString()); // ej 'D0 PARADA67'
+      idxToPush= dataHistorica.findIndex(parada => {return parada[0] == nameP})
+    }
+    rowIndex.push(idxToPush);
+  }
+  //verificar mismo length
+  if (rowIndex.length == paradasHoy.length-1 && rowIndex != -1){
+ 
+    rowIndex.forEach(pasteInHistoric)
+    
+    function pasteInHistoric(item, index) {
+      sheetHistorico.getRange(item+1,6,1,2).setValues([causeComment[index+1]]);
+    } 
+    
+  }else{
+    Logger.log('Failed length');
+    Logger.log('rowIndex.length: ' + rowIndex.length);
+    Logger.log('paradasHoy -1: ' + paradasHoy.length-1);
+  }
+  
+  
+  filterParadas2(sParadasHoy, sheetHistorico);
+  
+  // Borrar los datos si no hay paradas
+  
+  /*
+  for (i = rangeReal+1; i <= lengthT; i++)  // hacer funcion de este pedazo de codig
+  {
+    let datoVacio = [['SIN ASIGNAR','']];
+    sParadasHoy.getRange(i,6,1,2).setValues(datoVacio);
+  }
+  */
+    
+}
+
+function borrarParadasComentarios() { // deberia ser con input de los rangos // not working
+  
+  var sParadasHoy  = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Causas de parada Hoy").activate();
+  
+  for (i = 2; i <= 20; i++)
+  {
+    let datoVacio = [['SIN ASIGNAR','']];
+    sParadasHoy.getRange(i,6,1,2).setValues(datoVacio);
+  }
+
+}
+
+// Esta manera es ineficiente, habria que fijarse en las paradas de hoy si son correctas y despues seguir filtrando a partir de la ultima filtrada!
+// To compare to dates we call the method date.getTime();
+// la fecha es con que UTC??
+function filterParadas2(sParadasHoy, sheetHistorico) {
+  
+  var dataHistoricaNF = sheetHistorico.getRange('A:A').getValues();
+  var nParadas        = dataHistoricaNF.filter(String).length;
+  var paradasTabla = sheetHistorico.getRange(2,1,nParadas-1,8).getValues();
+  
+  var today = new Date();
+  Logger.log('today: ' + today);
+  //Logger.log('today: ' + today.getTime());
+  //Logger.log('paradasTabla[0][1].getDate(): ' + paradasTabla[0][1].getDate());
+  let todayDate= today.getDate();
+  let todayMonth= today.getMonth();
+  
+  var filtered = [];
+  for(var i = 0; i < paradasTabla.length; i++){
+    
+    var obj = paradasTabla[i];
+    //Logger.log('obj[1].getDate(): ' + obj[1].getDate());
+    //Logger.log('today.getDate(): ' + todayDate);
+    //Logger.log('obj[7]: ' + obj[7]);
+    
+    //if( obj[1].getDate() === todayDate && obj[1].getMonth() === todayMonth &&  (obj[7]== 'TURNO 1' || obj[7]== 'TURNO 2' || obj[7]== 'TURNO 3'  )){
+    if( obj[1].getDate() === todayDate && obj[1].getMonth() === todayMonth &&  (obj[7]== 'TURNO 1' ) &&  (obj[0]== 'Soldadora' )){
+      item= obj.slice(0, 7);
+      filtered.push(item);  
+      //Logger.log('Pushed ');
+    }    
+  }
+  
+  let nParadasFiltradas= filtered.length;
+  sParadasHoy.getRange(2+filtered.length,1,98-filtered.length,7).setValue('');
+  sParadasHoy.getRange(2+filtered.length,6,98-filtered.length,1).setValue('SIN ASIGNAR');
+  
+  /*
+  sParadasHoy.getRange(2+filtered.length,1,98-filtered.length,5).setValue('');
+  sParadasHoy.getRange(2+filtered.length,7,98-filtered.length,1).setValue('');// para que no se borre el Data validation Sin asignar
+  sParadasHoy.getRange(2+filtered.length,6,98-filtered.length,1).setValue('SIN ASIGNAR');
+  */
+  
+  if ( filtered.length > 0 ){
+    sParadasHoy.getRange(2,1,filtered.length,7).setValues(filtered);
+  }
+}
